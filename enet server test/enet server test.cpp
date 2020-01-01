@@ -56,7 +56,7 @@ char _getch() {
 #include "bcrypt.h"
 #endif
 #include <thread> // TODO
-#include <mutex> // TODO
+#include <mutex>
 
 #pragma warning(disable : 4996)
 
