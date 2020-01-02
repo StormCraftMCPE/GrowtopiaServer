@@ -1798,6 +1798,24 @@ void SendPacketRaw(int a1, void *packetData, size_t packetDataSize, void *a4, EN
 		ENetPeer * currentPeer;
 		GamePacket p = packetEnd(appendString(appendString(createPacket(), "OnRemove"), "netID|" + std::to_string(player->netID) + "\n")); // ((PlayerInfo*)(server->peers[i].data))->tankIDName
 		GamePacket p2 = packetEnd(appendString(appendString(createPacket(), "OnConsoleMessage"), "`5<`w" + player->displayName + "`` left, `w" + std::to_string(getPlayersCountInWorld(player->currentWorld)) + "`` others here>``"));
+		
+		if (((PlayerInfo*)(peer->data))->currentWorld != "EXIT") { 
+			WorldInfo playerWorld = WorldDB().get(((PlayerInfo*)(peer->data))->currentWorld);
+			if (playerWorld.owner != "" && playerWorld.owner == ((PlayerInfo*)(peer->data))->rawName) {
+				((PlayerInfo*)(peer->data))->displayName = ((PlayerInfo*)(peer->data))->displayName.substr(2, (((PlayerInfo*)(peer->data))->displayName.size() - 4)); // Don't ask why it's - 4, it just works ¯\_(ツ)_/¯
+
+				GamePacket p3 = packetEnd(appendString(appendString(createPacket(), "OnNameChanged"), ((PlayerInfo*)(peer->data))->displayName));
+				memcpy(p3.data + 8, & (((PlayerInfo*)(peer->data))->netID), 4);
+				ENetPacket * packet3 = enet_packet_create(p3.data,
+				p3.len,
+				ENET_PACKET_FLAG_RELIABLE);
+
+				enet_peer_send(peer, 0, packet3);
+				delete p3.data;
+			}
+			((PlayerInfo*)(peer->data))->currentWorld != "EXIT";
+		}
+
 		for (currentPeer = server->peers;
 			currentPeer < &server->peers[server->peerCount];
 			++currentPeer)
@@ -2100,6 +2118,24 @@ void SendPacketRaw(int a1, void *packetData, size_t packetDataSize, void *a4, EN
 		}
 		((PlayerInfo*)(peer->data))->currentWorld = worldInfo->name;
 		if (worldInfo->owner != "") {
+			if (worldInfo->owner == ((PlayerInfo*)(peer->data))->rawName) {
+				((PlayerInfo*)(peer->data))->displayName = "`2" + ((PlayerInfo*)(peer->data))->displayName + "``";
+				GamePacket p3 = packetEnd(appendString(appendString(createPacket(), "OnNameChanged"), ((PlayerInfo*)(peer->data))->displayName));
+				memcpy(p3.data + 8, & (((PlayerInfo*)(peer->data))->netID), 4);
+				ENetPacket * packet3 = enet_packet_create(p3.data,
+				p3.len,
+				ENET_PACKET_FLAG_RELIABLE);
+				ENetPeer * currentPeer;
+				for (currentPeer = server->peers; currentPeer < & server->peers[server->peerCount]; ++currentPeer) {
+					if (currentPeer->state != ENET_PEER_STATE_CONNECTED)
+					continue;
+					if (isHere(peer, currentPeer)) {
+						enet_peer_send(currentPeer, 0, packet3);
+					}
+				}
+				delete p3.data;
+			}
+
 			GamePacket p = packetEnd(appendString(appendString(createPacket(), "OnConsoleMessage"), "`#[`0" + worldInfo->name + " `9World Locked by " + worldInfo->owner + "`#]"));
 			ENetPacket* packet = enet_packet_create(p.data,
 				p.len,
@@ -3564,6 +3600,7 @@ label|Download Latest Version
 						int logStatus = PlayerDB::playerLogin(peer, ((PlayerInfo*)(event.peer->data))->rawName, ((PlayerInfo*)(event.peer->data))->tankIDPass);
 						if (logStatus == 1) {
 							GamePacket p = packetEnd(appendString(appendString(createPacket(), "OnConsoleMessage"), "`rYou have successfully logged into your account!``"));
+							((PlayerInfo*)(event.peer->data))->displayName = ((PlayerInfo*)(event.peer->data))->rawName;
 							ENetPacket * packet = enet_packet_create(p.data,
 								p.len,
 								ENET_PACKET_FLAG_RELIABLE);
